@@ -2,6 +2,9 @@
 /**
  * Builds Park from OC-Park post using ACF fields and Amenities/Activities taxonomies.
  */
+
+defined('ABSPATH') || exit;
+
 class ParkFactory {
 
   /** Build Park from OC-Park post ID. */
@@ -25,10 +28,10 @@ class ParkFactory {
       $geometry['coordinates'] ?? []
     );
 
-    $amenities = get_the_terms($post_id, 'amenities');
+    $amenities = get_the_terms($post_id, TaxonomyConstants::TAX_AMENITIES);
     $park->amenities = $amenities && ! is_wp_error($amenities) ? wp_list_pluck($amenities, 'slug') : [];
 
-    $activities = get_the_terms($post_id, 'activities');
+    $activities = get_the_terms($post_id, TaxonomyConstants::TAX_ACTIVITIES);
     $park->activities = $activities && ! is_wp_error($activities) ? wp_list_pluck($activities, 'slug') : [];
 
     return $park;

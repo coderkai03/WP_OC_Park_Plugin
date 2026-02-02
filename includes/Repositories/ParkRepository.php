@@ -3,13 +3,17 @@
  * Persists Park to OC-Park CPT using ACF fields and Amenities/Activities taxonomies.
  * CPT and taxonomies are registered elsewhere.
  */
+
+defined('ABSPATH') || exit;
+
 class ParkRepository {
 
   private const POST_TYPE = 'OC-Park';
-  private const TAX_AMENITIES = 'park_amenities';
-  private const TAX_ACTIVITIES = 'park_activities';
 
-  /** UPSERT park by global_id (creates or updates OC-Park post). */
+  /**
+   * UPSERT park by global_id (creates or updates OC-Park post).
+   * Only whitelisted taxonomy term slugs (TaxonomyConstants) are assigned.
+   */
   public static function upsert(Park $park): int {
 
     $post_id = self::find_by_global_id($park->global_id);
@@ -32,8 +36,11 @@ class ParkRepository {
     update_post_meta($post_id, 'park_global_id', $park->global_id);
     update_post_meta($post_id, 'geometry_geojson', json_encode($park->geometry));
 
-    wp_set_object_terms($post_id, $park->amenities, self::TAX_AMENITIES);
-    wp_set_object_terms($post_id, $park->activities, self::TAX_ACTIVITIES);
+    // Only assign terms that are in the allowed lists (and optionally exist in WP)
+    $amenities = TaxonomyConstants::filter_allowed_amenities($park->amenities);
+    $activities = TaxonomyConstants::filter_allowed_activities($park->activities);
+    wp_set_object_terms($post_id, $amenities, TaxonomyConstants::TAX_AMENITIES);
+    wp_set_object_terms($post_id, $activities, TaxonomyConstants::TAX_ACTIVITIES);
 
     return $post_id;
   }

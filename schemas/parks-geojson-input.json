@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/parks-geojson-input.json",
+  "title": "Parks GeoJSON Input",
+  "description": "Expected structure for GeoJSON file import (FeatureCollection of park features). Based on OC parks sample data.",
+  "type": "object",
+  "required": ["type", "features"],
+  "properties": {
+    "type": {
+      "const": "FeatureCollection",
+      "description": "Must be FeatureCollection"
+    },
+    "features": {
+      "type": "array",
+      "description": "Array of park features",
+      "items": { "$ref": "#/$defs/Feature" }
+    }
+  },
+  "$defs": {
+    "Feature": {
+      "type": "object",
+      "description": "A single park feature",
+      "required": ["type", "geometry"],
+      "properties": {
+        "type": { "const": "Feature" },
+        "id": {
+          "description": "Unique identifier (number or string). Optional if properties.GlobalID is set.",
+          "oneOf": [{ "type": "number" }, { "type": "string" }]
+        },
+        "geometry": { "$ref": "#/$defs/Geometry" },
+        "properties": { "$ref": "#/$defs/Properties" }
+      }
+    },
+    "Geometry": {
+      "type": "object",
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": { "enum": ["Polygon", "MultiPolygon", "Point"] },
+        "coordinates": {
+          "description": "GeoJSON coordinates (e.g. Polygon: array of linear rings, each ring is array of [lng, lat])"
+        }
+      }
+    },
+    "Properties": {
+      "type": "object",
+      "description": "Park attributes; names match sample (NAME, FULLADDR, etc.). GlobalID or feature.id required for upsert.",
+      "properties": {
+        "OBJECTID": { "type": ["number", "string", "null"] },
+        "NAME": { "type": "string" },
+        "FULLADDR": { "type": "string" },
+        "OWNEDBY": { "type": "string" },
+        "MAINTBY": { "type": "string" },
+        "TYPE": { "type": "string" },
+        "Active": { "type": "string" },
+        "OPERDAYS": { "type": "string" },
+        "OPERHOURS": { "type": "string" },
+        "PARKAREA": { "type": ["number", "string"] },
+        "PARKURL": { "type": "string" },
+        "GlobalID": { "type": "string", "description": "Unique id for upsert (e.g. GUID)" },
+        "PARKING": { "type": "string" },
+        "RESTROOM": { "type": "string" },
+        "PICNICTABLES": { "type": ["number", "string", "null"] },
+        "PICNICSHELTER": { "type": ["number", "string", "null"] },
+        "BBQ": { "type": ["number", "string", "null"] },
+        "DOGPARK": { "type": "string" },
+        "TRAILHEADS": { "type": "string" },
+        "CONCESSION": { "type": ["number", "string", "null"] },
+        "AMPSTA": { "type": "string" },
+        "SOCCFOOT": { "type": ["number", "string"] },
+        "BASEBALL": { "type": ["number", "string"] },
+        "SOFTBALL": { "type": ["number", "string"] },
+        "BASKETBALL": { "type": ["number", "string"] },
+        "VOLLEYBALL": { "type": ["number", "string"] },
+        "PICKLEBALL": { "type": ["number", "string"] },
+        "TENNIS": { "type": ["number", "string"] },
+        "SKATEFAC": { "type": "string" },
+        "SHUFFLEBOARD": { "type": "string" },
+        "DISCGOLF": { "type": ["number", "string"] },
+        "HORSESHOE": { "type": ["number", "string"] },
+        "PLAYGROUND": { "type": ["number", "string"] },
+        "FITNESSZONE": { "type": "string" },
+        "SWIMMINGPOOL": { "type": "string" },
+        "SPLASHPADS": { "type": "string" }
+      }
+    }
+  }
+}

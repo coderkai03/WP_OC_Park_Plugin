@@ -29,7 +29,7 @@ Plugin also uses:
 - **Activities** (slug: `activities`) – term slugs:  
   `park_soccer`, `park_baseball`, `park_softball`, `park_basketball`, `park_volleyball`, `park_pickleball`, `park_tennis`, `park_skating`, `park_shuffleboard`, `park_disc`, `park_horseshoe`, `park_playground`, `park_exercise`, `park_pool`, `park_splash`
 
-If your site uses different taxonomy **slugs** (e.g. not `amenities` / `activities`), update the constants in `includes/Repositories/ParkRepository.php` and the taxonomy names in `includes/ParkFactory.php`.
+Taxonomy slugs and allowed term slugs are defined in **includes/TaxonomyConstants.php** and used for validation in `ParkRepository::upsert()` and in `GeoJsonToParkMapper`. If your site uses different taxonomy slugs, update `TaxonomyConstants::TAX_AMENITIES` and `TaxonomyConstants::TAX_ACTIVITIES` there. For the expected GeoJSON shape when importing, see **docs/IMPORT.md**.
 
 ## Domain models
 
