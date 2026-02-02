@@ -1,0 +1,54 @@
+<?php
+/**
+ * Persists Park to OC-Park CPT using ACF fields and Amenities/Activities taxonomies.
+ * CPT and taxonomies are registered elsewhere.
+ */
+class ParkRepository {
+
+  private const POST_TYPE = 'OC-Park';
+  private const TAX_AMENITIES = 'park_amenities';
+  private const TAX_ACTIVITIES = 'park_activities';
+
+  /** UPSERT park by global_id (creates or updates OC-Park post). */
+  public static function upsert(Park $park): int {
+
+    $post_id = self::find_by_global_id($park->global_id);
+
+    if (!$post_id) {
+      $post_id = wp_insert_post([
+        'post_type'   => self::POST_TYPE,
+        'post_title'  => $park->info->name,
+        'post_status' => 'publish',
+      ]);
+    }
+
+    // ACF fields
+    update_post_meta($post_id, 'park_name', $park->info->name);
+    update_post_meta($post_id, 'park_address', $park->info->address);
+    update_post_meta($post_id, 'park_type', $park->info->type);
+    update_post_meta($post_id, 'park_size', $park->info->size);
+    update_post_meta($post_id, 'park_url', $park->info->url);
+
+    update_post_meta($post_id, 'park_global_id', $park->global_id);
+    update_post_meta($post_id, 'geometry_geojson', json_encode($park->geometry));
+
+    wp_set_object_terms($post_id, $park->amenities, self::TAX_AMENITIES);
+    wp_set_object_terms($post_id, $park->activities, self::TAX_ACTIVITIES);
+
+    return $post_id;
+  }
+
+  private static function find_by_global_id(string $global_id): ?int {
+
+    $query = new WP_Query([
+      'post_type'      => self::POST_TYPE,
+      'meta_query'     => [[
+        'key'   => 'park_global_id',
+        'value' => $global_id,
+      ]],
+      'posts_per_page' => 1,
+    ]);
+
+    return $query->have_posts() ? (int) $query->posts[0]->ID : null;
+  }
+}
