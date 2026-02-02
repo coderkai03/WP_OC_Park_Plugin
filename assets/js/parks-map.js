@@ -33,7 +33,18 @@
     mapTypeId: 'satellite'
   });
 
-  var dataLayer = new google.maps.Data();
+  var dataLayer = new google.maps.Data({
+    style: function () {
+      // Blue-themed polygon style
+      return {
+        fillColor: '#1976D2',   // medium blue fill
+        fillOpacity: 0.45,
+        strokeColor: '#0D47A1', // darker blue outline
+        strokeOpacity: 0.9,
+        strokeWeight: 2
+      };
+    }
+  });
   dataLayer.setMap(map);
   dataLayer.addGeoJson(geoJsonFeature);
 
