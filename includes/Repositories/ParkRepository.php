@@ -34,7 +34,7 @@ class ParkRepository {
     update_post_meta($post_id, 'park_url', $park->info->url);
 
     update_post_meta($post_id, 'park_global_id', $park->global_id);
-    update_post_meta($post_id, 'geometry_geojson', json_encode($park->geometry));
+    update_post_meta($post_id, 'park_geometry', json_encode($park->geometry));
 
     // Only assign terms that are in the allowed lists (and optionally exist in WP)
     $amenities = TaxonomyConstants::filter_allowed_amenities($park->amenities);

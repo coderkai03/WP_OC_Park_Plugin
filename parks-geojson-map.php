@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Parks GeoJSON Map
  * Description: Imports park GeoJSON polygons and renders a map via [parks_map].
- * Version: 0.2
+ * Version: 0.5
  */
 
 defined('ABSPATH') || exit;

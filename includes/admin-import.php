@@ -12,6 +12,23 @@ const PARKS_MAPS_SETTINGS_NONCE_ACTION = 'parks_maps_settings';
 const PARKS_GOOGLE_MAPS_API_KEY_OPTION = 'parks_google_maps_api_key';
 
 /**
+ * Lightweight debug logger for import troubleshooting.
+ * Enable by defining PARKS_GEOJSON_MAP_DEBUG to true in wp-config.php.
+ */
+function parks_geojson_debug_enabled(): bool {
+  return defined('PARKS_GEOJSON_MAP_DEBUG') && PARKS_GEOJSON_MAP_DEBUG;
+}
+
+function parks_geojson_log(string $message, array $context = []): void {
+  if (! parks_geojson_debug_enabled()) {
+    return;
+  }
+  $prefix = '[parks-geojson-map] ';
+  $ctx = $context ? ' ' . wp_json_encode($context) : '';
+  error_log($prefix . $message . $ctx);
+}
+
+/**
  * Register admin menu: add "Parks GeoJSON Import" under Settings.
  */
 add_action('admin_menu', function () {
@@ -52,78 +69,149 @@ add_action('admin_init', function () {
     return;
   }
 
-  // Verify nonce
-  if (! wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), PARKS_IMPORT_NONCE_ACTION)) {
-    set_transient('parks_import_message', ['error', 'Security check failed.'], 30);
-    wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
-    exit;
-  }
+  parks_geojson_log('Import requested', [
+    'user_id' => get_current_user_id(),
+    'file_name' => isset($_FILES['parks_geojson_file']['name']) ? (string) $_FILES['parks_geojson_file']['name'] : null,
+    'file_size' => isset($_FILES['parks_geojson_file']['size']) ? (int) $_FILES['parks_geojson_file']['size'] : null,
+    'file_type' => isset($_FILES['parks_geojson_file']['type']) ? (string) $_FILES['parks_geojson_file']['type'] : null,
+  ]);
 
-  // Ensure a file was uploaded and is valid
-  if (empty($_FILES['parks_geojson_file']['tmp_name']) || ! is_uploaded_file($_FILES['parks_geojson_file']['tmp_name'])) {
-    set_transient('parks_import_message', ['error', 'Please choose a GeoJSON file to upload.'], 30);
-    wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
-    exit;
-  }
-
-  // Read file contents from temp path
-  $tmp_path = sanitize_text_field(wp_unslash($_FILES['parks_geojson_file']['tmp_name']));
-  $content = @file_get_contents($tmp_path);
-  if ($content === false) {
-    set_transient('parks_import_message', ['error', 'Could not read the uploaded file.'], 30);
-    wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
-    exit;
-  }
-
-  // Decode JSON; require valid object
-  $data = json_decode($content, true);
-  if (json_last_error() !== JSON_ERROR_NONE || ! is_array($data)) {
-    set_transient('parks_import_message', ['error', 'Invalid JSON in the uploaded file.'], 30);
-    wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
-    exit;
-  }
-
-  // Validate against input schema (type safety)
-  $schema_errors = GeoJsonInputValidator::validate($data);
-  if (! empty($schema_errors)) {
-    $message = implode(' ', array_slice($schema_errors, 0, 3));
-    if (count($schema_errors) > 3) {
-      $message .= ' …';
+  try {
+    // Verify nonce
+    if (! wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), PARKS_IMPORT_NONCE_ACTION)) {
+      parks_geojson_log('Nonce verification failed');
+      set_transient('parks_import_message', ['error', 'Security check failed.'], 30);
+      wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+      exit;
     }
-    set_transient('parks_import_message', ['error', 'GeoJSON validation failed: ' . $message], 30);
+
+    // Ensure a file was uploaded and is valid
+    if (empty($_FILES['parks_geojson_file']['tmp_name']) || ! is_uploaded_file($_FILES['parks_geojson_file']['tmp_name'])) {
+      parks_geojson_log('No upload / invalid temp file');
+      set_transient('parks_import_message', ['error', 'Please choose a GeoJSON file to upload.'], 30);
+      wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+      exit;
+    }
+
+    // Read file contents from temp path
+    $tmp_path = sanitize_text_field(wp_unslash($_FILES['parks_geojson_file']['tmp_name']));
+    parks_geojson_log('Reading uploaded file', ['tmp_path' => $tmp_path]);
+
+    $content = @file_get_contents($tmp_path);
+    if ($content === false) {
+      parks_geojson_log('file_get_contents failed', ['tmp_path' => $tmp_path]);
+      set_transient('parks_import_message', ['error', 'Could not read the uploaded file.'], 30);
+      wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+      exit;
+    }
+    parks_geojson_log('File read ok', ['bytes' => strlen($content)]);
+
+    // Decode JSON; require valid object
+    $data = json_decode($content, true);
+    if (json_last_error() !== JSON_ERROR_NONE || ! is_array($data)) {
+      parks_geojson_log('JSON decode failed', [
+        'json_error' => json_last_error(),
+        'json_error_msg' => function_exists('json_last_error_msg') ? json_last_error_msg() : null,
+      ]);
+      set_transient('parks_import_message', ['error', 'Invalid JSON in the uploaded file.'], 30);
+      wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+      exit;
+    }
+    parks_geojson_log('JSON decoded', ['root_type' => $data['type'] ?? null]);
+
+    // Validate against input schema (type safety)
+    parks_geojson_log('Validating against schema');
+    $schema_errors = GeoJsonInputValidator::validate($data);
+    if (! empty($schema_errors)) {
+      parks_geojson_log('Schema validation failed', [
+        'error_count' => count($schema_errors),
+        'errors_head' => array_slice($schema_errors, 0, 10),
+      ]);
+      $message = implode(' ', array_slice($schema_errors, 0, 3));
+      if (count($schema_errors) > 3) {
+        $message .= ' …';
+      }
+      set_transient('parks_import_message', ['error', 'GeoJSON validation failed: ' . $message], 30);
+      wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+      exit;
+    }
+
+    // Require FeatureCollection with features array
+    $features = $data['features'] ?? null;
+    if (! is_array($features)) {
+      parks_geojson_log('Missing/invalid features array');
+      set_transient('parks_import_message', ['error', 'GeoJSON must be a FeatureCollection with a "features" array.'], 30);
+      wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+      exit;
+    }
+    parks_geojson_log('Features loaded', ['count' => count($features)]);
+
+    // Map each feature to Park and upsert; count imported vs skipped
+    $imported = 0;
+    $skipped = 0;
+    foreach ($features as $i => $feature) {
+      if (! is_array($feature)) {
+        $skipped++;
+        parks_geojson_log('Skipping non-object feature', ['index' => $i]);
+        continue;
+      }
+
+      try {
+        $park = GeoJsonToParkMapper::from_feature($feature);
+      } catch (\Throwable $t) {
+        $skipped++;
+        parks_geojson_log('Mapper threw', [
+          'index' => $i,
+          'message' => $t->getMessage(),
+          'file' => $t->getFile(),
+          'line' => $t->getLine(),
+        ]);
+        continue;
+      }
+
+      if ($park === null) {
+        $skipped++;
+        parks_geojson_log('Skipping invalid feature (mapper returned null)', [
+          'index' => $i,
+          'feature_id' => $feature['id'] ?? null,
+          'global_id' => $feature['properties']['GlobalID'] ?? null,
+        ]);
+        continue;
+      }
+
+      try {
+        ParkRepository::upsert($park);
+      } catch (\Throwable $t) {
+        $skipped++;
+        parks_geojson_log('Upsert threw', [
+          'index' => $i,
+          'global_id' => $park->global_id ?? null,
+          'message' => $t->getMessage(),
+          'file' => $t->getFile(),
+          'line' => $t->getLine(),
+        ]);
+        continue;
+      }
+
+      $imported++;
+    }
+    parks_geojson_log('Import finished', ['imported' => $imported, 'skipped' => $skipped]);
+
+    // Store success message in transient and redirect so it shows on next page load
+    set_transient('parks_import_message', ['success', sprintf('%d park(s) imported.', $imported) . ($skipped ? " {$skipped} feature(s) skipped (invalid or missing id/geometry)." : '')], 30);
+    wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
+    exit;
+  } catch (\Throwable $t) {
+    // Catch-all so we never white-screen the admin during import
+    parks_geojson_log('Import crashed (catch-all)', [
+      'message' => $t->getMessage(),
+      'file' => $t->getFile(),
+      'line' => $t->getLine(),
+    ]);
+    set_transient('parks_import_message', ['error', 'Import failed due to a server error. Enable PARKS_GEOJSON_MAP_DEBUG for details.'], 30);
     wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
     exit;
   }
-
-  // Require FeatureCollection with features array
-  $features = $data['features'] ?? null;
-  if (! is_array($features)) {
-    set_transient('parks_import_message', ['error', 'GeoJSON must be a FeatureCollection with a "features" array.'], 30);
-    wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
-    exit;
-  }
-
-  // Map each feature to Park and upsert; count imported vs skipped
-  $imported = 0;
-  $skipped = 0;
-  foreach ($features as $feature) {
-    if (! is_array($feature)) {
-      $skipped++;
-      continue;
-    }
-    $park = GeoJsonToParkMapper::from_feature($feature);
-    if ($park === null) {
-      $skipped++;
-      continue;
-    }
-    ParkRepository::upsert($park);
-    $imported++;
-  }
-
-  // Store success message in transient and redirect so it shows on next page load
-  set_transient('parks_import_message', ['success', sprintf('%d park(s) imported.', $imported) . ($skipped ? " {$skipped} feature(s) skipped (invalid or missing id/geometry)." : '')], 30);
-  wp_safe_redirect(admin_url('options-general.php?page=parks-geojson-import'));
-  exit;
 });
 
 /**

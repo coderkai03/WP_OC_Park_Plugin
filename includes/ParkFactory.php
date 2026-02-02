@@ -21,7 +21,7 @@ class ParkFactory {
       get_post_meta($post_id, 'park_url', true) ?: '',
     );
 
-    $geometry_json = get_post_meta($post_id, 'geometry_geojson', true);
+    $geometry_json = get_post_meta($post_id, 'park_geometry', true);
     $geometry = is_string($geometry_json) ? json_decode($geometry_json, true) : [];
     $park->geometry = new ParkGeometry(
       $geometry['type'] ?? 'Polygon',

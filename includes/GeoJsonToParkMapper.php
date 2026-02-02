@@ -103,12 +103,36 @@ class GeoJsonToParkMapper {
   private static function parse_taxonomies_from_properties(array $props, array $taxonomy_map): array {
     $out = [];
     foreach ($taxonomy_map as $prop_field => $slug) {
-      if (!array_key_exists($prop_field, $props) || $props[$prop_field] === 'null') {
+      if (!array_key_exists($prop_field, $props)) {
         continue;
       }
-      
+      $val = $props[$prop_field];
+      if (! self::is_truthy_tax_value($val)) {
+        continue;
+      }
+
       $out[] = (string) $slug;
     }
     return $out;
+  }
+
+  /**
+   * Determine if a taxonomy flag value should be treated as "on".
+   *
+   * Excludes common "off" representations:
+   * - null
+   * - "null"
+   * - "No" (any case)
+   * - 0 or "0"
+   */
+  private static function is_truthy_tax_value($val): bool {
+    if ($val === null) {
+      return false;
+    }
+    $s = strtolower(trim((string) $val));
+    if ($s === '' || $s === 'null' || $s === 'no' || $s === '0') {
+      return false;
+    }
+    return true;
   }
 }
