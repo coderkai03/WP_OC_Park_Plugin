@@ -66,6 +66,10 @@ parks-geojson-map/
 - **[docs/MAP.md](docs/MAP.md)** — Map rendering, API key, shortcode usage, and tooltip content.
 - **[schemas/parks-geojson-input.json](schemas/parks-geojson-input.json)** — JSON Schema for the expected GeoJSON input.
 
+## Scripts
+
+- **Zip project:** Double-click **Zip-Project.bat** (or run `.\zip-project.ps1` in PowerShell) to create `parks-geojson-map.zip` in the project root. The script excludes `.git`, `node_modules`, and existing `.zip` files.
+
 ## Version
 
 0.1

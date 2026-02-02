@@ -13,8 +13,8 @@
  *   - type: TYPE, type, PARK_TYPE, Type
  *   - size: PARKAREA, size, PARK_SIZE, Size (number or string)
  *   - url: PARKURL, url, PARK_URL, Url, external_url
- *   - amenities: comma-separated slugs or array; or derived from PARKING, RESTROOM, PICNICTABLES, etc. (Yes/count > 0)
- *   - activities: comma-separated slugs or array; or derived from SOCCFOOT, BASEBALL, BASKETBALL, etc. (1/Yes)
+ *   - amenities: presence of keys matching property fields (see TaxonomyConstants::AMENITIES_MAP)
+ *   - activities: presence of keys matching property fields (see TaxonomyConstants::ACTIVITIES_MAP)
  *
  * @see schemas/parks-geojson-input.json
  * @see docs/IMPORT.md
@@ -54,11 +54,11 @@ class GeoJsonToParkMapper {
 
     // Set the info (sample keys: NAME, FULLADDR, TYPE, PARKAREA, PARKURL)
     $park->info = new ParkInfo(
-      self::get_string($props, ['NAME', 'name', 'PARK_NAME', 'Name']),
-      self::get_string($props, ['FULLADDR', 'address', 'PARK_ADDRESS', 'Address']),
-      self::get_string($props, ['TYPE', 'type', 'PARK_TYPE', 'Type']),
-      self::get_string($props, ['PARKAREA', 'size', 'PARK_SIZE', 'Size']),
-      self::get_string($props, ['PARKURL', 'url', 'PARK_URL', 'Url', 'external_url']),
+      $props['NAME'] ?? '',
+      $props['FULLADDR'] ?? '',
+      $props['TYPE'] ?? '',
+      $props['PARKAREA'] ?? '',
+      $props['PARKURL'] ?? '',
     );
 
     // Set the geometry
@@ -67,19 +67,9 @@ class GeoJsonToParkMapper {
       $geometry['coordinates']
     );
 
-    // Parse amenities: explicit slugs (amenities key) or derive from sample keys (PARKING, RESTROOM, etc.)
-    $amenity_slugs = array_merge(
-      self::parse_term_slugs($props, 'amenities'),
-      self::parse_amenities_from_sample_properties($props)
-    );
-    $park->amenities = TaxonomyConstants::filter_allowed_amenities($amenity_slugs);
-
-    // Parse activities: explicit slugs (activities key) or derive from sample keys (SOCCFOOT, BASEBALL, etc.)
-    $activity_slugs = array_merge(
-      self::parse_term_slugs($props, 'activities'),
-      self::parse_activities_from_sample_properties($props)
-    );
-    $park->activities = TaxonomyConstants::filter_allowed_activities($activity_slugs);
+    // Parse amenities/activities: presence of term-slug keys in properties
+    $park->amenities = self::parse_taxonomies_from_properties($props, TaxonomyConstants::AMENITIES_MAP);
+    $park->activities = self::parse_taxonomies_from_properties($props, TaxonomyConstants::ACTIVITIES_MAP);
 
     return $park;
   }
@@ -104,111 +94,21 @@ class GeoJsonToParkMapper {
   }
 
   /**
-   * Get first non-empty string from props using given keys (case-sensitive).
-   */
-  private static function get_string(array $props, array $keys): string {
-    // Check if the properties have a key
-    foreach ($keys as $key) {
-      if (isset($props[ $key ]) && (string) $props[ $key ] !== '') {
-        return (string) $props[ $key ];
-      }
-    }
-    return '';
-  }
-
-  /**
-   * Parse amenities or activities from properties: comma-separated string or array of slugs.
+   * Parse taxonomy term slugs from properties by iterating a [property_field => slug] map.
    *
-   * @param array  $props feature properties
-   * @param string $key   property key (e.g. 'amenities' or 'activities')
-   * @return string[] list of trimmed slugs
+   * @param array    $props           Feature properties
+   * @param array<string,string> $taxonomy_map  Property-field => slug map (e.g. TaxonomyConstants::AMENITIES_MAP)
+   * @return string[] List of slugs present in props
    */
-  private static function parse_term_slugs(array $props, string $key): array {
-    $raw = $props[ $key ] ?? null;
-    if (is_array($raw)) {
-      return array_map('trim', array_map('strval', $raw));
-    }
-    if (is_string($raw) && $raw !== '') {
-      return array_filter(array_map('trim', explode(',', $raw)));
-    }
-    return [];
-  }
-
-  /**
-   * Derive amenity term slugs from sample property keys (PARKING, RESTROOM, PICNICTABLES, etc.).
-   * Yes/No or count; only allowed slugs are returned by filter_allowed_amenities in from_feature.
-   *
-   * @param array $props feature properties
-   * @return string[] list of term slugs
-   */
-  private static function parse_amenities_from_sample_properties(array $props): array {
-    $slugs = [];
-    $amenity_map = [
-      'PARKING'       => 'park_parking',
-      'RESTROOM'      => 'park_restrooms',
-      'PICNICTABLES'  => 'park_picnic_tables',
-      'PICNICSHELTER' => 'park_picnic_shelters',
-      'BBQ'           => 'park_bbq',
-      'DOGPARK'       => 'park_dog_park',
-      'TRAILHEADS'    => 'park_trailheads',
-      'AMPSTA'        => 'park_ampitheater',
-      'CONCESSION'    => 'park_concessions',
-    ];
-    foreach ($amenity_map as $key => $slug) {
-      $val = $props[ $key ] ?? null;
-      if (self::is_yes_or_positive($val)) {
-        $slugs[] = $slug;
+  private static function parse_taxonomies_from_properties(array $props, array $taxonomy_map): array {
+    $out = [];
+    foreach ($taxonomy_map as $prop_field => $slug) {
+      if (!array_key_exists($prop_field, $props) || $props[$prop_field] === 'null') {
+        continue;
       }
+      
+      $out[] = (string) $slug;
     }
-    return $slugs;
-  }
-
-  /**
-   * Derive activity term slugs from sample property keys (SOCCFOOT, BASEBALL, etc.).
-   * 1 / "1" / "Yes" → add slug; only allowed slugs are returned by filter in from_feature.
-   *
-   * @param array $props feature properties
-   * @return string[] list of term slugs
-   */
-  private static function parse_activities_from_sample_properties(array $props): array {
-    $slugs = [];
-    $activity_map = [
-      'SOCCFOOT'     => 'park_soccer',
-      'BASEBALL'     => 'park_baseball',
-      'SOFTBALL'     => 'park_softball',
-      'BASKETBALL'   => 'park_basketball',
-      'VOLLEYBALL'   => 'park_volleyball',
-      'PICKLEBALL'   => 'park_pickleball',
-      'TENNIS'       => 'park_tennis',
-      'SKATEFAC'     => 'park_skating',
-      'SHUFFLEBOARD' => 'park_shuffleboard',
-      'DISCGOLF'     => 'park_disc',
-      'HORSESHOE'    => 'park_horseshoe',
-      'PLAYGROUND'   => 'park_playground',
-      'FITNESSZONE'  => 'park_exercise',
-      'SWIMMINGPOOL' => 'park_pool',
-      'SPLASHPADS'   => 'park_splash',
-    ];
-    foreach ($activity_map as $key => $slug) {
-      $val = $props[ $key ] ?? null;
-      if (self::is_yes_or_positive($val)) {
-        $slugs[] = $slug;
-      }
-    }
-    return $slugs;
-  }
-
-  /**
-   * True if value indicates "yes" or positive (e.g. "Yes", 1, "1", count > 0).
-   */
-  private static function is_yes_or_positive($val): bool {
-    if ($val === null) {
-      return false;
-    }
-    if (is_numeric($val)) {
-      return (float) $val > 0;
-    }
-    $s = strtolower(trim((string) $val));
-    return $s === 'yes' || $s === '1' || $s === 'true';
+    return $out;
   }
 }

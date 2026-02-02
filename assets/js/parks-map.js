@@ -30,8 +30,7 @@
 
   var map = new google.maps.Map(mapEl, {
     zoom: 14,
-    center: { lat: 33.7, lng: -117.8 },
-    mapTypeId: 'roadmap'
+    mapTypeId: 'satellite'
   });
 
   var dataLayer = new google.maps.Data();

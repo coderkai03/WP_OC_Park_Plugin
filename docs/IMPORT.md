@@ -32,8 +32,8 @@ The importer maps the first non-empty value for each set of keys (case-sensitive
 | Type     | `TYPE`, `type`, `PARK_TYPE`, `Type` |
 | Size     | `PARKAREA`, `size`, `PARK_SIZE`, `Size` (number or string) |
 | URL      | `PARKURL`, `url`, `PARK_URL`, `Url`, `external_url` |
-| Amenities| `amenities` (comma-separated slugs or array); or derived from `PARKING`, `RESTROOM`, `PICNICTABLES`, `PICNICSHELTER`, `BBQ`, `DOGPARK`, `TRAILHEADS`, `AMPSTA`, `CONCESSION` (Yes or count > 0) |
-| Activities | `activities` (comma-separated slugs or array); or derived from `SOCCFOOT`, `BASEBALL`, `SOFTBALL`, `BASKETBALL`, `VOLLEYBALL`, `PICKLEBALL`, `TENNIS`, `SKATEFAC`, `SHUFFLEBOARD`, `DISCGOLF`, `HORSESHOE`, `PLAYGROUND`, `FITNESSZONE`, `SWIMMINGPOOL`, `SPLASHPADS` (1 or Yes) |
+| Amenities| Uses **TaxonomyConstants::AMENITIES_MAP** (`property_field => slug`). If `properties[property_field]` exists and is not `null`/`\"null\"`, the corresponding slug is assigned. |
+| Activities | Uses **TaxonomyConstants::ACTIVITIES_MAP** (`property_field => slug`). If `properties[property_field]` exists and is not `null`/`\"null\"`, the corresponding slug is assigned. |
 
 Missing optional fields default to empty string. Amenities and activities are filtered to the allowed term slugs defined in **includes/TaxonomyConstants.php**; any slug not in those lists is ignored.
 
